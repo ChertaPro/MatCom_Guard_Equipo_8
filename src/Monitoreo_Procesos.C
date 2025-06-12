@@ -4,10 +4,11 @@
 #include <string.h> // para trabajar con strings 
 #include <unistd.h> //para obtener sysconf(_SC_CLK_TCK), los ticks de reloj del sistema.
 
-// Definimos constantes de umbral (luego se leerán desde config)
-#define UMBRAL_CPU 20.0
-#define UMBRAL_RAM 50000  // en KB
-#define TIEMPO_UMBRAL 2   // iteraciones consecutivas para alertar
+
+double UMBRAL_CPU = 0.0;      
+double UMBRAL_RAM = 0.0;      
+int TIEMPO_UMBRAL = 0;        
+long TOTAL_RAM_KB = 0;  
 
 typedef struct {
     int pid;
@@ -17,9 +18,11 @@ typedef struct {
     int tiempo_sobre_umbral;
 } Proceso;
 
-// Prototipo de función para leer procesos y guardarlos en un array dinámico
+// Prototipos de funciones
 Proceso* leerProcesos(int *num_procesos, long ticks);
 void compararProcesos(Proceso *anteriores, int num_anteriores, Proceso *actuales, int num_actuales);
+void leerConfiguracion();
+void leerMemTotal();
 
 int Is_digit(int c) {
     return (c >= '0' && c <= '9');
@@ -30,6 +33,10 @@ int main()
     long ticks = sysconf(_SC_CLK_TCK);
     Proceso *procesos_anteriores = NULL;
     int num_anteriores = 0;
+
+    leerConfiguracion();
+    leerMemTotal();
+
 
     for (int i = 0; i < 5; i++)
     {
@@ -154,8 +161,9 @@ Proceso *leerProcesos(int *num_procesos, long ticks)
                 }
                 fclose(archive);      
             }
-            printf("PID: %d | Nombre: %s | RAM: %d KB | CPU: %.2f s\n", 
-            proc.pid, proc.nombre, proc.ram_kb, proc.cpu_s);
+            
+            // printf("PID: %d | Nombre: %s | RAM: %d KB | CPU: %.2f s\n", 
+            // proc.pid, proc.nombre, proc.ram_kb, proc.cpu_s);
 
             procesos = (Proceso *)realloc(procesos, (*num_procesos + 1)*sizeof(Proceso));
             if(procesos == NULL)
@@ -185,9 +193,12 @@ void compararProcesos(Proceso *anteriores, int num_anteriores, Proceso *actuales
             if(anteriores[j].pid == actual->pid)
             {
                 double delta_cpu = actual->cpu_s - anteriores[j].cpu_s;
-                int ram_kb = actual->ram_kb;
+                double porcentaje_cpu = delta_cpu*100;
+
+                double porcentaje_ram = (actual->ram_kb != -1 && TOTAL_RAM_KB != 0) ? 
+                    ((double)actual->ram_kb / (double)TOTAL_RAM_KB) * 100.0 : 0.0;
                 
-                if ((delta_cpu > UMBRAL_CPU) || (ram_kb > UMBRAL_RAM))
+                if ((porcentaje_cpu > UMBRAL_CPU) || (porcentaje_ram > UMBRAL_RAM))
                 {
                     actuales[i].tiempo_sobre_umbral =  anteriores[j].tiempo_sobre_umbral + 1;
                 }
@@ -199,7 +210,7 @@ void compararProcesos(Proceso *anteriores, int num_anteriores, Proceso *actuales
                 if (actuales[i].tiempo_sobre_umbral >= TIEMPO_UMBRAL) 
                 {
                     printf("⚠️  ALERTA: Proceso '%s' (PID %d) excedió umbral.\n", actual->nombre, actual->pid);
-                    printf("  CPU delta: %.2f s | RAM: %d KB\n", delta_cpu, ram_kb);
+                    printf("  CPU delta: %.2f s | RAM: %d KB\n", porcentaje_cpu, porcentaje_ram, actual->ram_kb);
                 }
 
                 encontrado = 1;
@@ -212,4 +223,64 @@ void compararProcesos(Proceso *anteriores, int num_anteriores, Proceso *actuales
             actuales[i].tiempo_sobre_umbral = 0;
         }
     }
+}
+
+void leerConfiguracion()
+{
+    FILE *archive = fopen("/etc/matcomguard.conf", "r");
+    if (archive == NULL)
+    {
+        printf("No se pudo abrir /etc/matcomguard.conf, usando valores por defecto. \n");
+    }
+
+    char line[256];
+    while (fgets(line, sizeof(line),archive))
+    {
+        char key[64];
+        char value[64];
+
+        if (line[0] == '#' || line[0] == '\n')
+        {
+            continue;
+        }
+
+        if (sscanf(line, "%[^=]=%s", key, value) == 2) 
+        {
+            if (strcmp(key, "UMBRAL_CPU") == 0) 
+            {
+                UMBRAL_CPU = atof(value);
+            } 
+            else if (strcmp(key, "UMBRAL_RAM") == 0) 
+            {
+                UMBRAL_RAM = atof(value);
+            } else if (strcmp(key, "TIEMPO_UMBRAL") == 0) {
+                TIEMPO_UMBRAL = atoi(value);
+            }
+        }
+    }
+
+    fclose(archive);
+    printf("Configuración cargada:\n");
+    printf("  UMBRAL_CPU: %.2f\n", UMBRAL_CPU);
+    printf("  UMBRAL_RAM: %.2f\n", UMBRAL_RAM);
+    printf("  TIEMPO_UMBRAL: %d\n", TIEMPO_UMBRAL);
+}
+
+void leerMemTotal()
+{
+    FILE *archivo = fopen("/proc/meminfo", "r");
+    if (archivo == NULL) {
+        perror("No se pudo abrir /proc/meminfo");
+        exit(1);
+    }
+
+    char linea[256];
+    while (fgets(linea, sizeof(linea), archivo)) {
+        if (strncmp(linea, "MemTotal:", 9) == 0) {
+            sscanf(linea, "MemTotal: %ld kB", &TOTAL_RAM_KB);
+            break;
+        }
+    }
+    fclose(archivo);
+    printf("Memoria total del sistema: %ld KB\n", TOTAL_RAM_KB);
 }
