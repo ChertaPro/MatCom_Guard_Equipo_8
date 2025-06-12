@@ -4,11 +4,15 @@
 #include <string.h> // para trabajar con strings 
 #include <unistd.h> //para obtener sysconf(_SC_CLK_TCK), los ticks de reloj del sistema.
 
-
+//matcomguard.conf
 double UMBRAL_CPU = 0.0;      
 double UMBRAL_RAM = 0.0;      
 int TIEMPO_UMBRAL = 0;        
 long TOTAL_RAM_KB = 0;  
+
+//Whitelist
+char **whitelist = NULL;
+int num_whitelist = 0;
 
 typedef struct {
     int pid;
@@ -23,6 +27,8 @@ Proceso* leerProcesos(int *num_procesos, long ticks);
 void compararProcesos(Proceso *anteriores, int num_anteriores, Proceso *actuales, int num_actuales);
 void leerConfiguracion();
 void leerMemTotal();
+void leerWhitelist();
+int estaEnWhitelist(const char *nombre);
 
 int Is_digit(int c) {
     return (c >= '0' && c <= '9');
@@ -36,6 +42,7 @@ int main()
 
     leerConfiguracion();
     leerMemTotal();
+    leerWhitelist();
 
 
     for (int i = 0; i < 5; i++)
@@ -209,8 +216,10 @@ void compararProcesos(Proceso *anteriores, int num_anteriores, Proceso *actuales
 
                 if (actuales[i].tiempo_sobre_umbral >= TIEMPO_UMBRAL) 
                 {
-                    printf("⚠️  ALERTA: Proceso '%s' (PID %d) excedió umbral.\n", actual->nombre, actual->pid);
-                    printf("  CPU delta: %.2f s | RAM: %d KB\n", porcentaje_cpu, porcentaje_ram, actual->ram_kb);
+                    if (!estaEnWhitelist(actual->nombre)) {
+                        printf("⚠️  ALERTA: Proceso '%s' (PID %d) excedió umbral.\n", actual->nombre, actual->pid);
+                        printf("  CPU delta: %.2f %% | RAM: %.2f %% (%d KB)\n", porcentaje_cpu, porcentaje_ram, actual->ram_kb);
+                    }
                 }
 
                 encontrado = 1;
@@ -283,4 +292,48 @@ void leerMemTotal()
     }
     fclose(archivo);
     printf("Memoria total del sistema: %ld KB\n", TOTAL_RAM_KB);
+}
+
+void leerWhitelist()
+{
+    FILE *archive = fopen("/etc/matcomguard_whitelist.conf","r");
+    if (archive == NULL)
+    {
+        printf("No se pudo abrir /etc/matcomguard_whitelist.conf. Sin whitelist.\n");
+        return;
+    }
+
+    char line [256];
+    while (fgets(line,sizeof(line),archive))
+    {
+        if(line[0] == '#' || line[0] == '\n')
+        {
+            continue;
+        }
+
+        line[strcspn(line,"\n")] = '\0';
+
+        whitelist = (char **)realloc(whitelist, (num_whitelist + 1)*sizeof(char*));
+        if (whitelist == NULL) {
+            perror("Fallo reservando memoria para whitelist");
+            exit(1);
+        }
+
+        whitelist[num_whitelist] = strdup(line);
+        num_whitelist++;
+    }
+    fclose(archive);
+
+    // Mostrar whitelist cargada
+    printf("Whitelist cargada (%d procesos):\n", num_whitelist);
+    for (int i = 0; i < num_whitelist; i++) {
+        printf("  - %s\n", whitelist[i]);
+    }
+    
+}
+
+int estaEnWhitelist(const char *nombre) {
+    for (int i = 0; i < num_whitelist; i++)
+        if (strcmp(nombre, whitelist[i]) == 0) return 1;
+    return 0;
 }
