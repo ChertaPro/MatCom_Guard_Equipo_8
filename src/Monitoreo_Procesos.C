@@ -4,6 +4,9 @@
 #include <string.h> // para trabajar con strings 
 #include <unistd.h> //para obtener sysconf(_SC_CLK_TCK), los ticks de reloj del sistema.
 
+//cd src gcc -o Monitoreo_Procesos Monitoreo_Procesos.C ./Monitoreo_Procesos
+
+
 //matcomguard.conf
 double UMBRAL_CPU = 0.0;      
 double UMBRAL_RAM = 0.0;      
@@ -13,6 +16,9 @@ long TOTAL_RAM_KB = 0;
 //Whitelist
 char **whitelist = NULL;
 int num_whitelist = 0;
+
+//Bucle Infinito 
+int MODO_SERVICIO = 0;
 
 typedef struct {
     int pid;
@@ -44,23 +50,24 @@ int main()
     leerMemTotal();
     leerWhitelist();
 
+    int iteracion = 1;
 
-    for (int i = 0; i < 5; i++)
-    {
-        printf("\n===== Iteracion %d =====\n",i+1);
+    do {
+        printf("\n===== Iteración %d =====\n", iteracion++);
         int num_actuales = 0;
-        Proceso *procesos_actuales = leerProcesos(&num_actuales,ticks);
+        Proceso *procesos_actuales = leerProcesos(&num_actuales, ticks);
 
-        if ( i > 0)
-        {
-            compararProcesos(procesos_anteriores,num_anteriores,procesos_actuales,num_actuales);
-        }
+        if (iteracion > 2)
+            compararProcesos(procesos_anteriores, num_anteriores, procesos_actuales, num_actuales);
+
         free(procesos_anteriores);
         procesos_anteriores = procesos_actuales;
         num_anteriores = num_actuales;
+
         sleep(1);
 
-    }
+    } while (MODO_SERVICIO || iteracion <= 5);
+
     free(procesos_anteriores);
     return 0;
 }
@@ -115,6 +122,7 @@ Proceso *leerProcesos(int *num_procesos, long ticks)
 
             //Leyendo RAM
             snprintf(path, sizeof(path),"/proc/%s/status",entry->d_name);
+            if (access(path, R_OK) != 0) continue;
             archive = fopen(path, "r");
             proc.ram_kb = -1;
 
@@ -172,13 +180,14 @@ Proceso *leerProcesos(int *num_procesos, long ticks)
             // printf("PID: %d | Nombre: %s | RAM: %d KB | CPU: %.2f s\n", 
             // proc.pid, proc.nombre, proc.ram_kb, proc.cpu_s);
 
-            procesos = (Proceso *)realloc(procesos, (*num_procesos + 1)*sizeof(Proceso));
-            if(procesos == NULL)
+            Proceso *tmp = (Proceso *)realloc(procesos, (*num_procesos + 1)*sizeof(Proceso));
+            if(!tmp)
             {
                 perror("Fallo reservando memoria para procesos");
+                free(procesos);
                 exit(1);
             }
-
+            procesos = tmp;
             procesos [*num_procesos] = proc;
             (*num_procesos)++;
         }
@@ -265,6 +274,9 @@ void leerConfiguracion()
             } else if (strcmp(key, "TIEMPO_UMBRAL") == 0) {
                 TIEMPO_UMBRAL = atoi(value);
             }
+            else if (strcmp(key, "MODO_SERVICIO") == 0)
+                MODO_SERVICIO = atoi(value);
+
         }
     }
 
@@ -278,18 +290,27 @@ void leerConfiguracion()
 void leerMemTotal()
 {
     FILE *archivo = fopen("/proc/meminfo", "r");
-    if (archivo == NULL) {
+    if (archivo == NULL) 
+    {
         perror("No se pudo abrir /proc/meminfo");
         exit(1);
     }
 
     char linea[256];
-    while (fgets(linea, sizeof(linea), archivo)) {
-        if (strncmp(linea, "MemTotal:", 9) == 0) {
+    while (fgets(linea, sizeof(linea), archivo)) 
+    {
+        if (strncmp(linea, "MemTotal:", 9) == 0) 
+        {
             sscanf(linea, "MemTotal: %ld kB", &TOTAL_RAM_KB);
             break;
         }
     }
+    if (TOTAL_RAM_KB == 0) 
+    {
+        fprintf(stderr, "No se pudo obtener MemTotal. Abortando.\n");
+        exit(1);
+    }
+
     fclose(archivo);
     printf("Memoria total del sistema: %ld KB\n", TOTAL_RAM_KB);
 }
