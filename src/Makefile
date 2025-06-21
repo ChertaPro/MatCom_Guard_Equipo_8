@@ -1,7 +1,3 @@
-//Compilar make
-//Limpiar make clean
-//Ejecutar ./MatComGuard
-
 CC = gcc
 CFLAGS = -Wall -g
 OBJS = main.o procesos.o config.o log.o

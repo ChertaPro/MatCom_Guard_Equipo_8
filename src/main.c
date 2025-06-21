@@ -2,6 +2,10 @@
 #include "config.h"
 #include "log.h"
 #include <unistd.h>
+//Compilar make
+//Limpiar make clean
+//Ejecutar ./MatComGuard
+
 
 int main()
 {
@@ -14,8 +18,9 @@ int main()
     leerWhitelist();
 
     int iteracion = 1;
-
+    
     do {
+        system("clear");
         printf("\n===== Iteración %d =====\n", iteracion++);
         int num_actuales = 0;
         Proceso *procesos_actuales = leerProcesos(&num_actuales, ticks);
@@ -27,7 +32,7 @@ int main()
         procesos_anteriores = procesos_actuales;
         num_anteriores = num_actuales;
 
-        sleep(1);
+        sleep(5);
 
     } while (MODO_SERVICIO || iteracion <= 5);
 

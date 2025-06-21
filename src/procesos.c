@@ -148,7 +148,7 @@ void compararProcesos(Proceso *anteriores, int num_anteriores, Proceso *actuales
             if(anteriores[j].pid == actual->pid)
             {
                 double delta_cpu = actual->cpu_s - anteriores[j].cpu_s;
-                double porcentaje_cpu = delta_cpu*100;
+                double porcentaje_cpu = delta_cpu/5*100;
 
                 double porcentaje_ram = (actual->ram_kb != -1 && TOTAL_RAM_KB != 0) ? 
                     ((double)actual->ram_kb / (double)TOTAL_RAM_KB) * 100.0 : 0.0;
@@ -171,7 +171,11 @@ void compararProcesos(Proceso *anteriores, int num_anteriores, Proceso *actuales
                         escribirLog(actual->nombre, actual->pid, porcentaje_cpu, porcentaje_ram);
                     }
                 }
-
+                else
+                {
+                    printf("Proceso '%s' (PID %d) CPU delta: %.2f %% | RAM: %.2f %% (%d KB)\n",
+                                actual->nombre, actual->pid, porcentaje_cpu, porcentaje_ram, actual->ram_kb);
+                }
                 encontrado = 1;
                 break;
             }
