@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <pthread.h>
 
 typedef struct
 {
@@ -34,7 +35,7 @@ void set_nonblocking(int sockfd)
 
 int test_port(const char *ip, unsigned int port, unsigned int timeout_sec)
 {
-    int sockfd = socket(AF_INET, SOCK_STREAM, 0); // Crear socket TCP
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0); // Create socket TCP
     if (sockfd < 0)
     {
         perror("socket");
@@ -44,7 +45,7 @@ int test_port(const char *ip, unsigned int port, unsigned int timeout_sec)
     memset(&target_addr, 0, sizeof(target_addr));
     target_addr.sin_family = AF_INET;
     target_addr.sin_port = htons(port);
-    if (inet_pton(AF_INET, ip, &target_addr.sin_addr) <= 0) // Convierte IP (char to binary)
+    if (inet_pton(AF_INET, ip, &target_addr.sin_addr) <= 0) // IP form char to binary
     {
         perror("inet_pton");
         close(sockfd);
@@ -69,7 +70,7 @@ int test_port(const char *ip, unsigned int port, unsigned int timeout_sec)
     tv.tv_sec = timeout_sec;
     tv.tv_usec = 0;
     int result = 0;
-    if (select(sockfd + 1, NULL, &fdset, NULL, &tv) > 0) // Evita tiempo de espera infinito intentando conectarse
+    if (select(sockfd + 1, NULL, &fdset, NULL, &tv) > 0)
     {
         int so_error;
         socklen_t len = sizeof(so_error);
@@ -81,20 +82,60 @@ int test_port(const char *ip, unsigned int port, unsigned int timeout_sec)
     return result;
 }
 
-// Función principal de escaneo
-void port_scanner(PortScanConfig config)
+typedef struct
+{
+    const char *ip;
+    unsigned int timeout_sec;
+    pthread_mutex_t mutex;
+    unsigned int next_port;
+    unsigned int end_port;
+    int open_ports;
+} ThreadControl;
+
+void *scan_worker(void *arg)
+{
+    ThreadControl *control = (ThreadControl *)arg;
+    while (1)
+    {
+        unsigned int port_to_scan;
+        pthread_mutex_lock(&control->mutex);
+        if (control->next_port > control->end_port)
+        {
+            pthread_mutex_unlock(&control->mutex);
+            break;
+        }
+        port_to_scan = control->next_port++;
+        pthread_mutex_unlock(&control->mutex);
+        int status = test_port(control->ip, port_to_scan, control->timeout_sec);
+        if (status == 1)
+        {
+            pthread_mutex_lock(&control->mutex);
+            printf("\033[32m[+] Puerto %d abierto\033[0m\n", port_to_scan);
+            control->open_ports++;
+            pthread_mutex_unlock(&control->mutex);
+        }
+        else if (status == -1)
+            printf("\033[31m  [!] Error al escanear puerto %d\033[0m\n", port_to_scan);
+    }
+}
+
+void threaded_port_scanner(PortScanConfig config)
 {
     printf("\nEscaneando puertos TCP en %s (puertos %d-%d)...\n", config.target_ip, config.start_port, config.end_port);
-    unsigned int open_ports = 0;
-    for (unsigned int port = config.start_port; port <= config.end_port; port++)
-    {
-        int status = test_port(config.target_ip, port, config.timeout_sec);
-        if (status == 1)
-            printf("  [+] Puerto %d abierto\n", port), open_ports++;
-        else if (status == -1)
-            printf("  [!] Error al escanear puerto %d\n", port);
-    }
-    printf("\nEscaneo completado. Puertos abiertos: %d/%d\n", open_ports, config.end_port - config.start_port + 1);
+    ThreadControl control = {
+        .ip = config.target_ip,
+        .timeout_sec = config.timeout_sec,
+        .next_port = config.start_port,
+        .end_port = config.end_port,
+        .open_ports = 0};
+    pthread_mutex_init(&control.mutex, NULL);
+    pthread_t threads[32];
+    for (int i = 0; i < 32; i++)
+        pthread_create(&threads[i], NULL, scan_worker, &control);
+    for (int i = 0; i < 32; i++)
+        pthread_join(threads[i], NULL);
+    printf("\nEscaneo completado. Puertos abiertos: %d/%d\n", control.open_ports, config.end_port - config.start_port + 1);
+    pthread_mutex_destroy(&control.mutex);
 }
 
 void main_scanner()
@@ -104,7 +145,12 @@ void main_scanner()
         .start_port = 1,
         .end_port = 1024,
         .timeout_sec = 1};
-    port_scanner(config);
+    while (1)
+    {
+        system("clear");
+        threaded_port_scanner(config);
+        sleep(3);
+    }
 }
 
 int main()
