@@ -11,6 +11,8 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <pthread.h>
+#include "port_services.h"
+#include "port_db.h"
 
 typedef struct
 {
@@ -35,7 +37,7 @@ void set_nonblocking(int sockfd)
 
 int test_port(const char *ip, unsigned int port, unsigned int timeout_sec)
 {
-    int sockfd = socket(AF_INET, SOCK_STREAM, 0); // Create socket TCP
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0); // Crear socket TCP
     if (sockfd < 0)
     {
         perror("socket");
@@ -45,7 +47,7 @@ int test_port(const char *ip, unsigned int port, unsigned int timeout_sec)
     memset(&target_addr, 0, sizeof(target_addr));
     target_addr.sin_family = AF_INET;
     target_addr.sin_port = htons(port);
-    if (inet_pton(AF_INET, ip, &target_addr.sin_addr) <= 0) // IP form char to binary
+    if (inet_pton(AF_INET, ip, &target_addr.sin_addr) <= 0) // IP: char -> binary
     {
         perror("inet_pton");
         close(sockfd);
@@ -110,7 +112,9 @@ void *scan_worker(void *arg)
         if (status == 1)
         {
             pthread_mutex_lock(&control->mutex);
-            printf("\033[32m[+] Puerto %d abierto\033[0m\n", port_to_scan);
+            printf("\033[32m[+] Puerto %d (%s) abierto\033[0m\n", port_to_scan, get_service_name(port_to_scan));
+            verificar_puerto(port_to_scan);
+            printf("\n");
             control->open_ports++;
             pthread_mutex_unlock(&control->mutex);
         }
@@ -134,16 +138,17 @@ void threaded_port_scanner(PortScanConfig config)
         pthread_create(&threads[i], NULL, scan_worker, &control);
     for (int i = 0; i < 32; i++)
         pthread_join(threads[i], NULL);
-    printf("\nEscaneo completado. Puertos abiertos: %d/%d\n", control.open_ports, config.end_port - config.start_port + 1);
+    printf("\nPuertos abiertos: %d/%d\n", control.open_ports, config.end_port - config.start_port + 1);
     pthread_mutex_destroy(&control.mutex);
 }
 
 void main_scanner()
 {
+    load_json("config.json");
     PortScanConfig config = {
         .target_ip = "127.0.0.1",
         .start_port = 1,
-        .end_port = 1024,
+        .end_port = 65535,
         .timeout_sec = 1};
     while (1)
     {
@@ -151,6 +156,7 @@ void main_scanner()
         threaded_port_scanner(config);
         sleep(3);
     }
+    liberar_memoria();
 }
 
 int main()
