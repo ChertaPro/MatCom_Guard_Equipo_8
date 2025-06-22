@@ -10,7 +10,7 @@ typedef struct {
 } Proceso;
 
 Proceso* leerProcesos(int *num_procesos, long ticks);
-void compararProcesos(Proceso *anteriores, int num_anteriores, Proceso *actuales, int num_actuales);
+void compararProcesos(Proceso *anteriores, int num_anteriores, Proceso *actuales, int num_actuales,long num_cpus);
 int Is_digit(int c);
 
 #endif

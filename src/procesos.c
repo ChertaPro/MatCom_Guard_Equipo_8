@@ -136,7 +136,7 @@ Proceso *leerProcesos(int *num_procesos, long ticks)
     return procesos;
 }
 
-void compararProcesos(Proceso *anteriores, int num_anteriores, Proceso *actuales, int num_actuales)
+void compararProcesos(Proceso *anteriores, int num_anteriores, Proceso *actuales, int num_actuales,long num_cpus)
 {
     for (int i = 0; i < num_actuales; i++)
     {
@@ -148,7 +148,7 @@ void compararProcesos(Proceso *anteriores, int num_anteriores, Proceso *actuales
             if(anteriores[j].pid == actual->pid)
             {
                 double delta_cpu = actual->cpu_s - anteriores[j].cpu_s;
-                double porcentaje_cpu = delta_cpu/5*100;
+                double porcentaje_cpu = (delta_cpu / 5.0) * 100.0 / num_cpus;
 
                 double porcentaje_ram = (actual->ram_kb != -1 && TOTAL_RAM_KB != 0) ? 
                     ((double)actual->ram_kb / (double)TOTAL_RAM_KB) * 100.0 : 0.0;

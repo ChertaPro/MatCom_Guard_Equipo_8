@@ -2,6 +2,7 @@
 #include "config.h"
 #include "log.h"
 #include <unistd.h>
+
 //Compilar make
 //Limpiar make clean
 //Ejecutar ./MatComGuard
@@ -12,6 +13,7 @@ int main()
     long ticks = sysconf(_SC_CLK_TCK);
     Proceso *procesos_anteriores = NULL;
     int num_anteriores = 0;
+    long num_cpus = sysconf(_SC_NPROCESSORS_ONLN);
 
     leerConfiguracion();
     leerMemTotal();
@@ -26,7 +28,7 @@ int main()
         Proceso *procesos_actuales = leerProcesos(&num_actuales, ticks);
 
         if (iteracion > 1)
-            compararProcesos(procesos_anteriores, num_anteriores, procesos_actuales, num_actuales);
+            compararProcesos(procesos_anteriores, num_anteriores, procesos_actuales, num_actuales,num_cpus);
 
         free(procesos_anteriores);
         procesos_anteriores = procesos_actuales;
