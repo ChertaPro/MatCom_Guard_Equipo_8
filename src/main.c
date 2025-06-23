@@ -1,6 +1,5 @@
 #include "procesos.h"
 #include "config.h"
-#include "log.h"
 #include <unistd.h>
 
 //Compilar make
@@ -26,9 +25,20 @@ int main()
         printf("\n===== Iteración %d =====\n", iteracion++);
         int num_actuales = 0;
         Proceso *procesos_actuales = leerProcesos(&num_actuales, ticks);
-
+        inicializarBuffers();
+        
         if (iteracion > 1)
             compararProcesos(procesos_anteriores, num_anteriores, procesos_actuales, num_actuales,num_cpus);
+
+        // Imprimir procesos
+        char* procesos_str = obtenerProcesosFormateados();
+        printf("\n--- Procesos ---\n%s\n", procesos_str);
+        free(procesos_str); // importante si se asignó memoria dinámica
+
+        // Imprimir alertas
+        char* alertas_str = obtenerAlertasFormateadas();
+        printf("\n--- Alertas ---\n%s\n", alertas_str);
+        free(alertas_str); // importante si se asignó memoria dinámica
 
         free(procesos_anteriores);
         procesos_anteriores = procesos_actuales;

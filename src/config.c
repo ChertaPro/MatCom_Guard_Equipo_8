@@ -4,6 +4,10 @@
 #include <string.h>
 #include <unistd.h>
 
+//sudo nano /etc/matcomguard_whitelist.conf
+//sudo nano /etc/matcomguard.conf
+
+
 double UMBRAL_CPU = 0.0;
 double UMBRAL_RAM = 0.0;
 int TIEMPO_UMBRAL = 0;

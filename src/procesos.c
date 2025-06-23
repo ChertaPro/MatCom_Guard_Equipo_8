@@ -1,14 +1,24 @@
 #include "procesos.h"
 #include "config.h"
-#include "log.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <dirent.h>
 #include <string.h>
 #include <unistd.h>
 
+// Variables para almacenar los textos de procesos y alertas
+static char *procesos_string = NULL;
+static char *alertas_string = NULL;
+
 int Is_digit(int c) {
     return (c >= '0' && c <= '9');
+}
+
+void inicializarBuffers() {
+    free(procesos_string);
+    free(alertas_string);
+    procesos_string = strdup("");
+    alertas_string = strdup("");
 }
 
 Proceso *leerProcesos(int *num_procesos, long ticks)
@@ -138,6 +148,7 @@ Proceso *leerProcesos(int *num_procesos, long ticks)
 
 void compararProcesos(Proceso *anteriores, int num_anteriores, Proceso *actuales, int num_actuales,long num_cpus)
 {
+    char linea[512];
     for (int i = 0; i < num_actuales; i++)
     {
         Proceso * actual = &actuales[i];
@@ -153,29 +164,32 @@ void compararProcesos(Proceso *anteriores, int num_anteriores, Proceso *actuales
                 double porcentaje_ram = (actual->ram_kb != -1 && TOTAL_RAM_KB != 0) ? 
                     ((double)actual->ram_kb / (double)TOTAL_RAM_KB) * 100.0 : 0.0;
                 
+                snprintf(linea, sizeof(linea),
+                         "Proceso '%s' (PID %d) CPU: %.2f %% | RAM: %.2f %% (%d KB)\n",
+                         actual->nombre, actual->pid, porcentaje_cpu, porcentaje_ram, actual->ram_kb);
+                procesos_string = realloc(procesos_string, strlen(procesos_string) + strlen(linea) + 1);
+                strcat(procesos_string, linea);
+
                 if ((porcentaje_cpu > UMBRAL_CPU) || (porcentaje_ram > UMBRAL_RAM))
                 {
-                    actuales[i].tiempo_sobre_umbral =  anteriores[j].tiempo_sobre_umbral + 1;
+                    actual->tiempo_sobre_umbral =  anteriores[j].tiempo_sobre_umbral + 1;
                 }
                 else
                 {
-                    actuales[i].tiempo_sobre_umbral = 0;
+                    actual->tiempo_sobre_umbral = 0;
                 }
 
-                if (actuales[i].tiempo_sobre_umbral >= TIEMPO_UMBRAL) 
+                if (actual->tiempo_sobre_umbral >= TIEMPO_UMBRAL) 
                 {
                     if (!estaEnWhitelist(actual->nombre)) {
-                        printf("⚠️  ALERTA: Proceso '%s' (PID %d) excedió umbral.\n", actual->nombre, actual->pid);
-                        printf("  CPU delta: %.2f %% | RAM: %.2f %% (%d KB)\n", porcentaje_cpu, porcentaje_ram, actual->ram_kb);
-                        
-                        escribirLog(actual->nombre, actual->pid, porcentaje_cpu, porcentaje_ram);
+                        snprintf(linea, sizeof(linea),
+                                 "⚠️ ALERTA: '%s' (PID %d) CPU: %.2f %% | RAM: %.2f %% (%d KB)\n",
+                                 actual->nombre, actual->pid, porcentaje_cpu, porcentaje_ram, actual->ram_kb);
+                        alertas_string = realloc(alertas_string, strlen(alertas_string) + strlen(linea) + 1);
+                        strcat(alertas_string, linea);
                     }
                 }
-                else
-                {
-                    printf("Proceso '%s' (PID %d) CPU delta: %.2f %% | RAM: %.2f %% (%d KB)\n",
-                                actual->nombre, actual->pid, porcentaje_cpu, porcentaje_ram, actual->ram_kb);
-                }
+            
                 encontrado = 1;
                 break;
             }
@@ -183,7 +197,16 @@ void compararProcesos(Proceso *anteriores, int num_anteriores, Proceso *actuales
 
         if(!encontrado)
         {
-            actuales[i].tiempo_sobre_umbral = 0;
+            actuales->tiempo_sobre_umbral = 0;
         }
     }
+}
+
+char* obtenerProcesosFormateados() {
+    return procesos_string ? strdup(procesos_string) : strdup("Sin datos.\n");
+}
+
+// ✅ NUEVO: devuelve copia del string con las alertas formateadas
+char* obtenerAlertasFormateadas() {
+    return alertas_string ? strdup(alertas_string) : strdup("Sin alertas.\n");
 }
