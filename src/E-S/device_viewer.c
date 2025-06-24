@@ -1,20 +1,17 @@
 #include <gtk/gtk.h>
 #include <string.h>
 #include <pthread.h>
-
 #include <libudev.h>
 #include <libnotify/notify.h>
 #include <unistd.h>
 #include <stdlib.h>
-
-extern char mounted_devices[64][256];
-extern int device_count;
-extern pthread_mutex_t device_mutex;
-extern void show_log_window(GtkWidget *, gpointer);
+#include "inotify_monitor.h"
+#include "log_viewer.h"
 
 // Referencia a la ventana principal
 GtkWidget *device_window = NULL;
 GtkListBox *device_list = NULL;
+static pthread_t udev_thread;
 
 // Determina ícono por tipo de nombre
 const char *get_device_icon(const char *name)
@@ -59,6 +56,8 @@ void refresh_device_list()
     pthread_mutex_unlock(&device_mutex);
 
     gtk_widget_show_all(GTK_WIDGET(device_list));
+    // ad_join(udev_thread, NULL);
+    device_window = NULL;
 }
 
 // Hilo que escucha eventos de udev
@@ -97,7 +96,7 @@ void *udev_monitor_thread(void *data)
 // Función para cuando la ventana se cierra
 static void on_device_window_destroy(GtkWidget *widget, gpointer data)
 {
-    pthread_join(udev_monitor_thread, NULL);
+    pthread_join(udev_thread, NULL);
     device_window = NULL;
 }
 
@@ -119,14 +118,13 @@ void show_device_window(GtkWidget *widget, gpointer data)
     g_signal_connect(btn, "clicked", G_CALLBACK(show_log_window), NULL);
     gtk_container_add(GTK_CONTAINER(device_window), btn);
 
-    start_udev_if_needed(); // Activar udev cuando se abre
+    // start_udev_if_needed(); // Activar udev cuando se abre
 
     device_list = GTK_LIST_BOX(gtk_list_box_new());
     GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL);
     gtk_container_add(GTK_CONTAINER(scroll), GTK_WIDGET(device_list));
     gtk_container_add(GTK_CONTAINER(device_window), scroll);
 
-    pthread_t udev_thread;
     pthread_create(&udev_thread, NULL, udev_monitor_thread, NULL);
 
     refresh_device_list();

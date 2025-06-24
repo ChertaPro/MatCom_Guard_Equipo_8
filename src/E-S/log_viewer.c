@@ -4,6 +4,7 @@
 #include <string.h>
 #include <cairo.h>
 #include <cairo-pdf.h>
+#include <libnotify/notify.h>
 #include <time.h>
 
 GtkWidget *log_window = NULL;
@@ -21,36 +22,41 @@ char *get_log_path()
 }
 
 // Comparador de líneas para ordenamiento
-int compare_lines(const void *a, const void *b, void *sort_key_ptr)
-{
-    const char *key = sort_key_ptr;
-    const char *line1 = *(const char **)a;
-    const char *line2 = *(const char **)b;
+// int compare_lines(const void *a, const void *b, void *sort_key_ptr)
+// {
+//     const char *key = sort_key_ptr;
+//     const char *line1 = *(const char **)a;
+//     const char *line2 = *(const char **)b;
 
-    if (strcmp(key, "Tipo") == 0)
-    {
-        return strcasecmp(strstr(line1, "]") + 2, strstr(line2, "]") + 2);
-    }
-    else if (strcmp(key, "Nombre") == 0)
-    {
-        const char *colon1 = strrchr(line1, ':');
-        const char *colon2 = strrchr(line2, ':');
-        return strcasecmp(colon1 ? colon1 + 1 : "", colon2 ? colon2 + 1 : "");
-    }
-    else
-    { // Fecha (default)
-        return strcasecmp(line1, line2);
-    }
+//     if (strcmp(key, "Tipo") == 0)
+//     {
+//         return strcasecmp(strstr(line1, "]") + 2, strstr(line2, "]") + 2);
+//     }
+//     else if (strcmp(key, "Nombre") == 0)
+//     {
+//         const char *colon1 = strrchr(line1, ':');
+//         const char *colon2 = strrchr(line2, ':');
+//         return strcasecmp(colon1 ? colon1 + 1 : "", colon2 ? colon2 + 1 : "");
+//     }
+//     else
+//     { // Fecha (default)
+//         return strcasecmp(line1, line2);
+//     }
+// }
+
+int compare_lines(const void *a, const void *b) {
+    const char *str_a = *(const char **)a;
+    const char *str_b = *(const char **)b;
+    return strcmp(str_a, str_b);
 }
-
 // Filtra y ordena las líneas según el tipo seleccionado
-char *filtered_sorted_log(const char *filter_type, const char *sort_key)
+char *read_filtered_sorted_log(const char *filter_type, const char *sort_key)
 {
     char *log_path = get_log_path();
     FILE *f = fopen(log_path, "r");
     free(log_path);
     if (!f)
-        return g_strdup("No se encontró el archivo de log.");
+        return g_strdup("No se encontró el registro de alertas.");
 
     // Leer y filtrar líneas
     char **lines = malloc(2048 * sizeof(char *));
@@ -67,7 +73,7 @@ char *filtered_sorted_log(const char *filter_type, const char *sort_key)
     fclose(f);
 
     // Ordenar
-    qsort_r(lines, count, sizeof(char *), compare_lines, (void *)sort_key);
+    qsort(lines, count, sizeof(char *), compare_lines);
 
     // Concatenar
     char *content = malloc(count * 1024);
@@ -167,10 +173,11 @@ void show_log_window(GtkWidget *widget, gpointer data)
     }
 
     log_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-    gtk_window_set_title(GTK_WINDOW(log_window), "Log de Actividad");
+    gtk_window_set_title(GTK_WINDOW(log_window), "Alertas de Archivos");
     gtk_window_set_default_size(GTK_WINDOW(log_window), 600, 400);
     g_signal_connect(log_window, "destroy", G_CALLBACK(gtk_widget_destroyed), &log_window);
 
+    GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
     GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
 
     // ComboBox de filtro

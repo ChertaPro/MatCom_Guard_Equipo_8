@@ -12,11 +12,10 @@
 #define EVENT_SIZE (sizeof(struct inotify_event))
 #define EVENT_BUF_LEN (1024 * (EVENT_SIZE + 16))
 #define MAX_WATCHES 4096
-#define LOG_PATH "/home/tu_usuario/.fileguardian.log" // Reemplaza con tu nombre de usuario o usa getenv("HOME")
-// snprintf(LOG_PATH, sizeof(LOG_PATH), "%s/.fileguardian.log", getenv("HOME"));
 
 // Estructura global
 static int inotify_fd;
+static char log_path[512];
 static pthread_t watcher_thread;
 
 // Mapa entre watch descriptor y path
@@ -32,7 +31,7 @@ static int watch_count = 0;
 // Registrar evento en el log
 void write_to_log(const char *event, const char *filepath)
 {
-    FILE *f = fopen(LOG_PATH, "a");
+    FILE *f = fopen(log_path, "a");
     if (!f)
         return;
     time_t now = time(NULL);
@@ -147,8 +146,16 @@ void *watch_loop(void *arg)
 }
 
 // Iniciar monitoreo en una lista de rutas
-void start_recursive_monitor(const char *paths[], int count)
+void start_recursive_monitor()
 {
+    const char *home = getenv("HOME");
+    if (!home)
+    {
+        fprintf(stderr, "No se pudo obtener $HOME\n");
+        exit(EXIT_FAILURE);
+    }
+    snprintf(log_path, sizeof(log_path), "%s/.fileguardian.log", home);
+
     notify_init("FileGuardian");
 
     inotify_fd = inotify_init();
@@ -158,6 +165,12 @@ void start_recursive_monitor(const char *paths[], int count)
         return;
     }
 
+    const char *paths[] = {
+        "/media", // Dispositivos externos montados
+        "/home",  // Ruta interna
+    };
+    const int count = 2;
+    
     for (int i = 0; i < count; ++i)
         add_watch_recursive(paths[i]);
 

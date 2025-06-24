@@ -1,11 +1,10 @@
 #include <gtk/gtk.h>
+#include "inotify_monitor.h"
+#include "device_viewer.h"
 
-// Declaraciones externas (de otros archivos)
-extern void start_inotify_monitor();
-extern void show_device_window(GtkWidget *widget, gpointer data);
 // Añadir las funciones que muestran las ventanas de los procesos y las redes. Provisionales:
-extern void show_process_window(GtkWidget *widget, gpointer data);
-extern void show_network_window(GtkWidget *widget, gpointer data);
+void show_process_window(GtkWidget *widget, gpointer data){}
+void show_network_window(GtkWidget *widget, gpointer data){}
 
 // GTK app
 void app_init() // Se puede colocar en un archivo para la interfaz

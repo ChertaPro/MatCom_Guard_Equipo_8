@@ -6,13 +6,12 @@
 #include <unistd.h>
 #include <sys/inotify.h>
 #include <libnotify/notify.h>
+#include "recursive_watcher.h"
 
 #define MONITOR_DIR "/media"
 #define MAX_DEVICES 64
 #define EVENT_SIZE (sizeof(struct inotify_event))
 #define EVENT_BUF_LEN (1024 * (EVENT_SIZE + 16))
-
-extern void start_recursive_monitor(const char *paths[], int count);
 
 // Lista global de dispositivos montados
 char mounted_devices[MAX_DEVICES][256];
@@ -107,14 +106,11 @@ void *inotify_thread(void *arg)
 void start_inotify_monitor()
 {
     notify_init("Monitor de Dispositivos");
+
     scan_mounted_devices(); // inicializa la lista al arrancar
     pthread_t tid;
     pthread_create(&tid, NULL, inotify_thread, NULL);
     pthread_detach(tid);
 
-    const char *paths[] = {
-        "/media", // Dispositivos externos montados
-        "/home",  // Ruta interna
-    };
-    start_recursive_monitor(paths, 2);
+    start_recursive_monitor();
 }
