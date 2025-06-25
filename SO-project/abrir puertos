@@ -1,6 +1,0 @@
-HTTP (80)
-sudo python3 -m http.server 80
-
-SSH (22)
-sudo systemctl start ssh
-sudo systemctl stop ssh

@@ -10,7 +10,7 @@ void* consumir_cpu(void* arg) {
 }
 
 int main() {
-    int num_hilos = 3;  // ajusta según cuántos núcleos quieras ocupar
+    int num_hilos = 50;  // ajusta según cuántos núcleos quieras ocupar
     pthread_t hilos[num_hilos];
 
     for (int i = 0; i < num_hilos; i++) {
